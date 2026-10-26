@@ -145,7 +145,7 @@ def shared_labels_for(cfg, R, Cw, batch):
 
 
 def output_path(cfg):
-    """.npz path under <scene sim dir>/code_clean_results/, unique per
+    """.npz path under <scene sim dir>/results/, unique per
     configuration. Creates the directory if needed.
     """
     scene_cfg = cfg['scene_cfg']
@@ -155,7 +155,7 @@ def output_path(cfg):
     if cfg['hw_delay_probs']:
         probs_str = '-'.join(f'{v}x{p:.2f}' for v, p in sorted(cfg['hw_delay_probs'].items()))
         stem += f'_hwdelay{probs_str}'
-    directory = f'{dc.scene_sim_dir(scene_cfg)}/code_clean_results'
+    directory = f'{dc.scene_sim_dir(scene_cfg)}/results'
     os.makedirs(directory, exist_ok=True)
     return f"{directory}/{stem}{cfg['out_tag']}.npz"
 

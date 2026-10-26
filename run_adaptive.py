@@ -214,7 +214,7 @@ def output_paths(cfg):
         probs_str = '-'.join(f'{v}x{p:.2f}' for v, p in sorted(cfg['hw_delay_probs'].items()))
         stem += f'_hwdelay{probs_str}'
     stem += cfg['out_tag']
-    directory = f'{dc.scene_sim_dir(scene_cfg)}/code_clean_results'
+    directory = f'{dc.scene_sim_dir(scene_cfg)}/results'
     os.makedirs(directory, exist_ok=True)
     return f'{directory}/{stem}.npz', f'{directory}/partitions_{stem}.npz'
 

@@ -42,7 +42,7 @@ point at a different location, edit these. Layout differs by scene `kind`:
   `load_scandata.load_gt_depth_cm`): set `transient_path` directly on the
   scene's `SceneConfig` entry in `dataset_config.py`, under `DATA_DIR`.
 - **Saving results** (either kind): `{SIM_DIR}/<rendered_images or
-  scan_data>/<scene>/code_clean_results/`, built in `output_path()`
+  scan_data>/<scene>/results/`, built in `output_path()`
   (`run_nonadaptive.py`) / `output_paths()` (`run_adaptive.py`). Change
   `SIM_DIR` (or `scene_sim_dir()` itself) to save elsewhere.
 
@@ -76,7 +76,7 @@ B=100 SCALE=pure PIXEL_MEDIAN_SIZE=3 python3 run_adaptive.py
 ```
 
 A positional argument (`python3 run_nonadaptive.py 500`) is shorthand for
-`B=500`. Results land in `data/rendered_images/<scene>/code_clean_results/`
+`B=500`. Results land in `data/rendered_images/<scene>/results/`
 as `.npz` files (depth maps, MAE, run metadata); `run_adaptive.py` also
 writes a `partitions_*.npz` trace.
 
