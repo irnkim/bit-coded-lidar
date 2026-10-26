@@ -19,6 +19,29 @@ pip install -r requirements.txt
 Requires a CUDA GPU (cupy-cuda12x). `bathroom-cycles-2` scene data ships in
 `data/`.
 
+## Data paths
+
+All paths are set in `dataset_config.py`, relative to the repo by default
+(`DATA_DIR`/`SIM_DIR` = `<repo>/data`, `RESULTS_DIR` = `<repo>/results`). To
+point at a different location, edit these:
+
+- **`DATA_DIR` / `SIM_DIR`** (top of `dataset_config.py`) -- the input root.
+  Change this to move where scene data is read from.
+- **Ground truth**: `{SIM_DIR}/rendered_images/<scene>/depth_gt.npz`, built
+  from `scene_sim_dir()` in `dataset_config.py` and read by
+  `reconstruct.ground_truth_path()`.
+- **SNR histogram** (the five per-origin reference files `photon_sample.py`
+  loads): `{SIM_DIR}/rendered_images/<scene>/snr_histogram/<category>_hist_
+  <scene>.npz`, from `photon_sample.component_path()`.
+- **Saving results**: `{SIM_DIR}/rendered_images/<scene>/code_clean_results/`,
+  built in `output_path()` (`run_nonadaptive.py`) / `output_paths()`
+  (`run_adaptive.py`). Change `SIM_DIR` (or `scene_sim_dir()` itself) to
+  save elsewhere.
+
+Adding a new scene means adding a `SceneConfig` entry to `FLASHLIDAR_SCENES`
+or `SCANDATA_SCENES` in `dataset_config.py` and placing its data at the
+paths above.
+
 ## Run
 
 ```
