@@ -16,8 +16,10 @@ configuration:
 pip install -r requirements.txt
 ```
 
-Requires a CUDA GPU (cupy-cuda12x). `bathroom-cycles-2` scene data ships in
-`data/`.
+Requires a CUDA GPU (cupy-cuda12x). Scene data is not in this repo (too
+large for git) -- download `bathroom-cycles-2` from
+[Google Drive](https://drive.google.com/drive/folders/1QpCOi8PI_fjXvehxPy0F4tPu0ivpRtn1?usp=drive_link)
+and extract it to `data/`, matching the layout in [Data paths](#data-paths).
 
 ## Data paths
 
