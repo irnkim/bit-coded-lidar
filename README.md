@@ -23,24 +23,30 @@ Requires a CUDA GPU (cupy-cuda12x). `bathroom-cycles-2` scene data ships in
 
 All paths are set in `dataset_config.py`, relative to the repo by default
 (`DATA_DIR`/`SIM_DIR` = `<repo>/data`, `RESULTS_DIR` = `<repo>/results`). To
-point at a different location, edit these:
+point at a different location, edit these. Layout differs by scene `kind`:
 
 - **`DATA_DIR` / `SIM_DIR`** (top of `dataset_config.py`) -- the input root.
   Change this to move where scene data is read from.
-- **Ground truth**: `{SIM_DIR}/rendered_images/<scene>/depth_gt.npz`, built
-  from `scene_sim_dir()` in `dataset_config.py` and read by
-  `reconstruct.ground_truth_path()`.
-- **SNR histogram** (the five per-origin reference files `photon_sample.py`
-  loads): `{SIM_DIR}/rendered_images/<scene>/snr_histogram/<category>_hist_
-  <scene>.npz`, from `photon_sample.component_path()`.
-- **Saving results**: `{SIM_DIR}/rendered_images/<scene>/code_clean_results/`,
-  built in `output_path()` (`run_nonadaptive.py`) / `output_paths()`
-  (`run_adaptive.py`). Change `SIM_DIR` (or `scene_sim_dir()` itself) to
-  save elsewhere.
+- **`kind='flashlidar'`** (`bathroom-cycles-2`, `kitchen-2`) -- a rendered
+  scene, split into ground truth and a separately-labelled noise histogram:
+  - **Ground truth**: `{SIM_DIR}/rendered_images/<scene>/depth_gt.npz`, from
+    `scene_sim_dir()` and read by `reconstruct.ground_truth_path()`.
+  - **SNR histogram** (the five per-origin reference files `photon_sample.py`
+    loads): `{SIM_DIR}/rendered_images/<scene>/snr_histogram/<category>_hist_
+    <scene>.npz`, from `photon_sample.component_path()`.
+- **`kind='scandata'`** (`face_scanning`, `deer`, and their `_adaptive`
+  crops) -- a real measured histogram, one file, no separate GT file (ground
+  truth is the argmax of that same histogram, via
+  `load_scandata.load_gt_depth_cm`): set `transient_path` directly on the
+  scene's `SceneConfig` entry in `dataset_config.py`, under `DATA_DIR`.
+- **Saving results** (either kind): `{SIM_DIR}/<rendered_images or
+  scan_data>/<scene>/code_clean_results/`, built in `output_path()`
+  (`run_nonadaptive.py`) / `output_paths()` (`run_adaptive.py`). Change
+  `SIM_DIR` (or `scene_sim_dir()` itself) to save elsewhere.
 
 Adding a new scene means adding a `SceneConfig` entry to `FLASHLIDAR_SCENES`
 or `SCANDATA_SCENES` in `dataset_config.py` and placing its data at the
-paths above.
+paths above for that kind.
 
 ## Run
 
