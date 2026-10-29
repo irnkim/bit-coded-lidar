@@ -22,9 +22,15 @@ Configuration is by environment variable:
     B                    cycles per batch, default 1
     G_H, G_W            group height/width, default 1 1
     SHIFT_STEP          0 fixed block (default), 1 sliding block
-    CODE                bernoulli (default), lowpass, trig, chipoffset
+    CODE                bernoulli (default), lowpass, trig, chipoffset --
+                        also accepts filtered-bernoulli/cosine-wave/
+                        wide-bernoulli as aliases for lowpass/trig/
+                        chipoffset (see codes.FAMILY_ALIASES); resolved to
+                        the canonical name before it touches a filename
     CODE_SHARING        unshared (default) or shared
     P_DETECT            signal detection probability in (0, 1], default 1.0
+    HW_DELAY_MODE        per_cycle (default) or per_batch_group -- see
+                        hw_delay.DelaySource.draw_per_group
     CYCLES              illumination cycles, default dataset_config.M
     BILAT_RADIUS        default 5
     BILAT_SIGMA_SPATIAL default 2.0
@@ -73,7 +79,7 @@ def configuration():
         raise ValueError(f'group {g_h}x{g_w} does not fit {scene_cfg.R}x{scene_cfg.Cw}')
 
     shift_step = int(os.environ.get('SHIFT_STEP', 0))
-    family = os.environ.get('CODE', 'bernoulli')
+    family = codes.resolve_family(os.environ.get('CODE', 'bernoulli'))
     sharing = os.environ.get('CODE_SHARING', 'unshared')
 
     p_detect = float(os.environ.get('P_DETECT', 1.0))
@@ -101,11 +107,19 @@ def configuration():
             delay_str, prob_str = part.split(':')
             hw_delay_probs[int(delay_str)] = float(prob_str)
 
+    # per_cycle (default): independent delay draw per (pixel, cycle).
+    # per_batch_group: one draw per (batch, group) -- every pixel in a
+    # group and every cycle in the batch shares the same delay (see
+    # hw_delay.DelaySource.draw_per_group).
+    hw_delay_mode = os.environ.get('HW_DELAY_MODE', 'per_cycle')
+    if hw_delay_mode not in ('per_cycle', 'per_batch_group'):
+        raise ValueError(f'HW_DELAY_MODE must be per_cycle or per_batch_group, got {hw_delay_mode!r}')
+
     return dict(
         scene_cfg=scene_cfg, g_h=g_h, g_w=g_w, shift_step=shift_step,
         family=family, sharing=sharing, p_detect=p_detect,
         batch_size=batch_size, cycles=cycles, decode_mode=decode_mode,
-        hw_delay_probs=hw_delay_probs,
+        hw_delay_probs=hw_delay_probs, hw_delay_mode=hw_delay_mode,
         n_batches=cycles // batch_size,
         verify_batches=int(os.environ.get('VERIFY_BATCHES', 0)),
         checkpoint_every=int(os.environ.get('CHECKPOINT_EVERY', 500)),
@@ -130,7 +144,7 @@ def acquisition_config(cfg):
         batch_size=cfg['batch_size'], shift_step=cfg['shift_step'],
         code=cfg['family'], sharing=cfg['sharing'], p_detect=cfg['p_detect'],
         cycles=cfg['cycles'], decode=cfg['decode_mode'],
-        hw_delay_probs=cfg['hw_delay_probs'],
+        hw_delay_probs=cfg['hw_delay_probs'], hw_delay_mode=cfg['hw_delay_mode'],
     )
 
 
@@ -155,6 +169,8 @@ def output_path(cfg):
     if cfg['hw_delay_probs']:
         probs_str = '-'.join(f'{v}x{p:.2f}' for v, p in sorted(cfg['hw_delay_probs'].items()))
         stem += f'_hwdelay{probs_str}'
+        if cfg['hw_delay_mode'] != 'per_cycle':
+            stem += f"_{cfg['hw_delay_mode']}"
     directory = f'{dc.scene_sim_dir(scene_cfg)}/results'
     os.makedirs(directory, exist_ok=True)
     return f"{directory}/{stem}{cfg['out_tag']}.npz"
@@ -175,7 +191,8 @@ def main():
         scene_cfg, cfg['family'], sharing=cfg['sharing'])
     delay_source = (hw_delay.DelaySource(cfg['hw_delay_probs'])
                     if cfg['hw_delay_probs'] is not None else None)
-    hw_delay_log = f" {hw_delay.describe(cfg['hw_delay_probs'])}" if cfg['hw_delay_probs'] else ''
+    hw_delay_log = (f" {hw_delay.describe(cfg['hw_delay_probs'])} mode={cfg['hw_delay_mode']}"
+                     if cfg['hw_delay_probs'] else '')
     print(f"scene={scene_cfg.name} G={cfg['g_h']}x{cfg['g_w']} B={cfg['batch_size']} "
           f"shift_step={cfg['shift_step']} {code_source.describe()} "
           f"p_detect={cfg['p_detect']} cycles={cfg['cycles']} "
@@ -230,7 +247,14 @@ def main():
             labels_for_batch=None if cfg['sharing'] != 'shared' else
             (lambda b: shared_labels_for(cfg, R, Cw, b)))
         if delay_source is not None:
-            delay_source.fast_forward(start_batch, R * Cw, cfg['batch_size'])
+            if cfg['hw_delay_mode'] == 'per_batch_group':
+                # n_groups only depends on the shift pattern, which is
+                # constant across batches for SHIFT_STEP=0 (fixed block);
+                # a sliding block would need this recomputed per batch.
+                _, n_groups_ff = shared_labels_for(cfg, R, Cw, 0)
+                delay_source.fast_forward_per_group(start_batch, n_groups_ff)
+            else:
+                delay_source.fast_forward(start_batch, R * Cw, cfg['batch_size'])
         print(f'  repositioned ({replayed} batches replayed, '
               f'{time.time() - reposition_started:.0f}s)', flush=True)
 
@@ -274,8 +298,12 @@ def main():
         if cfg['decode_mode'] == 'hier0':
             bits = encode.group_bits_hierarchical(code_pb, labels_flat, n_groups, arrivals)
         else:
-            delay_bins = (delay_source.draw(R * Cw, cfg['batch_size'])
-                          if delay_source is not None else None)
+            if delay_source is None:
+                delay_bins = None
+            elif cfg['hw_delay_mode'] == 'per_batch_group':
+                delay_bins = delay_source.draw_per_group(labels_flat, n_groups, cfg['batch_size'])
+            else:
+                delay_bins = delay_source.draw(R * Cw, cfg['batch_size'])
             bits = encode.group_bits(code_pb, labels_flat, n_groups, arrivals,
                                       pixel_delay_bins=delay_bins)
 

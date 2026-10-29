@@ -118,7 +118,7 @@ def configuration():
     if scale not in ('pure', 'all'):
         raise ValueError(f"SCALE must be pure or all, got {scale!r}")
 
-    family = os.environ.get('CODE', 'bernoulli')
+    family = codes.resolve_family(os.environ.get('CODE', 'bernoulli'))
 
     p_detect = float(os.environ.get('P_DETECT', 1.0))
     if not 0.0 < p_detect <= 1.0:

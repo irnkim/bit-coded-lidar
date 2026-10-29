@@ -88,11 +88,12 @@ Shared (both drivers):
 |---|---|---|
 | `SCENE` | any `dataset_config.ALL_SCENES` key | `bathroom-cycles-2` |
 | `B` | cycles per batch | `1` |
-| `CODE` | `bernoulli`, `lowpass`, `trig`, `chipoffset` | `bernoulli` |
+| `CODE` | `bernoulli`, `lowpass`, `trig`, `chipoffset` -- also accepts `filtered-bernoulli`/`cosine-wave`/`wide-bernoulli` as aliases for `lowpass`/`trig`/`chipoffset` (see `codes.FAMILY_ALIASES`); all three non-bernoulli families are themselves bernoulli-based (smoothed, summed-cosine, or chip-grouped), resolved to the canonical name before touching any filename, so results/checkpoints are unaffected either way | `bernoulli` |
 | `CODE_SHARING` | `unshared`, `shared` | `unshared` |
 | `P_DETECT` | signal detection probability, `(0, 1]` | `1.0` |
 | `CYCLES` | total illumination cycles | `dataset_config.M` (500,000) |
 | `HW_DELAY_PROBS` | `"0:0.7,1:0.2,2:0.1"` (delay-in-bins:fraction, sums to 1) | off |
+| `HW_DELAY_MODE` | `per_cycle` (independent delay draw per pixel/cycle) or `per_batch_group` (one draw per batch/group, shared by every pixel in the group and every cycle in the batch) | `per_cycle` |
 | `BILAT_RADIUS` | bilateral filter window half-width (px) | `5` |
 | `BILAT_SIGMA_SPATIAL` | bilateral spatial falloff | `2.0` |
 | `BILAT_SIGMA_RANGE` | bilateral brightness falloff | `0.15` |

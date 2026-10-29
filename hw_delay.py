@@ -1,8 +1,15 @@
-"""Hardware code-distribution delay, in time bins, drawn fresh for every
-(pixel, cycle). Models a fast digital clock (distinct from the laser rep
-rate) distributing the per-bin code waveform to each pixel: the code value a
-pixel's hardware samples may lag the true bin by a small, independent number
-of that clock's own cycles -- not a fixed per-pixel property.
+"""Hardware code-distribution delay, in time bins. Models a fast digital
+clock (distinct from the laser rep rate) distributing the per-bin code
+waveform to each pixel: the code value a pixel's hardware samples may lag
+the true bin by a small number of that clock's own cycles.
+
+Two granularities:
+    draw(n_pixels, batch_size)                       independent per
+        (pixel, cycle) -- the default, no shared clock-domain structure.
+    draw_per_group(labels_flat, n_groups, batch_size) one draw per
+        (batch, group): every pixel in the same spatial group, and every
+        cycle in the batch, shares the identical delay -- models all
+        pixels in a group hanging off the same clock-distribution branch.
 
 Usage:
     delay_source = DelaySource(probs={0: 0.7, 1: 0.2, 2: 0.1})
@@ -57,6 +64,29 @@ class DelaySource:
         lands in the right position."""
         for _ in range(n_batches):
             self.draw(n_pixels, batch_size)
+
+    def draw_per_group(self, labels_flat, n_groups, batch_size):
+        """One delay draw per (batch, group) instead of per (pixel, cycle):
+        every pixel in the same spatial group, and every cycle in this
+        batch, shares the identical delay value. Returns (n_pixels,
+        batch_size) -- a broadcast view, not a materialized copy -- so it's
+        a drop-in replacement for draw()'s output shape wherever it's only
+        read (encode.group_bits indexes it, never writes it).
+        """
+        u = self.rng.random((n_groups,), dtype=cp.float32)
+        bucket = cp.zeros((n_groups,), dtype=cp.int32)
+        for threshold in self.cum[:-1]:
+            bucket += (u >= threshold).astype(cp.int32)
+        group_delay = self.values[bucket]       # (n_groups,)
+        pixel_delay = group_delay[labels_flat]  # (n_pixels,)
+        return cp.broadcast_to(pixel_delay[:, None], (pixel_delay.shape[0], batch_size))
+
+    def fast_forward_per_group(self, n_batches, n_groups):
+        """Replay (and discard) n_batches per-group draws, for resuming a
+        draw_per_group run (see fast_forward)."""
+        for _ in range(n_batches):
+            u = self.rng.random((n_groups,), dtype=cp.float32)
+            del u
 
 
 def describe(probs):

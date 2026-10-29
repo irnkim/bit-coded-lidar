@@ -21,6 +21,26 @@ DRAW_FAMILIES = ('bernoulli', 'lowpass', 'trig', 'chipoffset')
 CODE_FAMILIES = DRAW_FAMILIES
 SHARING_MODES = ('unshared', 'shared')
 
+# Presentation/display names for the three jitter-robust families (lowpass,
+# trig, chipoffset are all literally bernoulli-based: lowpass = smoothed-
+# then-thresholded, chipoffset = grouped into fixed-width chips, trig =
+# summed cosine harmonics). Accepted as aliases for CODE=/family= so
+# running an experiment with either name does the identical thing --
+# resolved to the canonical name immediately, before it ever reaches a
+# result filename, checkpoint fingerprint, or RNG seed, so this changes
+# nothing about already-computed results or in-flight runs.
+FAMILY_ALIASES = {
+    'wide-bernoulli': 'chipoffset',
+    'filtered-bernoulli': 'lowpass',
+    'cosine-wave': 'trig',
+}
+
+
+def resolve_family(name):
+    """Canonical family name for `name`, passing through aliases (see
+    FAMILY_ALIASES) and leaving an already-canonical name untouched."""
+    return FAMILY_ALIASES.get(name, name)
+
 GLOBAL_SEED = 4096  # shared with bernoulli_coding, jitter_robust_coding, dataset_config.EVENT_SEED
 
 _DRAW_FNS = {
