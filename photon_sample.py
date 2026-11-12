@@ -29,7 +29,7 @@ Batches must be sampled in order from 0; a resumed run replays via skip_to.
 Memory: the per-pixel CDF lives on the GPU, ~3.1 GB for a 240x320x2000
 scene. Work is tiled over pixels to bound per-batch temporaries.
 """
-import cupy as cp
+from xp_backend import cp
 import numpy as np
 
 import dataset_config as dc
@@ -94,15 +94,26 @@ class PhotonSampler:
         pool = pool.reshape(self.n_pixels, self.width)
 
         # Per-pixel CDF, built once. float64 cumsum for exactness over int
-        # counts, then stored as float32.
+        # counts, then stored as float32. Built in pixel-row TILES: the
+        # naive one-shot version makes a (n_pixels, width) float64
+        # intermediate (~6GB at 240x320x2000) on top of pool and the
+        # final float32 cdf, easily exceeding a CPU-backend host's
+        # per-user cgroup memory cap even though it fits fine in GPU VRAM
+        # -- tiling bounds peak memory to one row-block at a time instead,
+        # harmless on either backend.
         self.pool_total = pool.sum(axis=1)
-        safe = cp.where(self.pool_total > 0, self.pool_total, 1).astype(cp.float64)
-        self.cdf = cp.cumsum(pool.astype(cp.float64) / safe[:, None],
-                             axis=1).astype(cp.float32)
+        self.cdf = cp.empty((self.n_pixels, self.width), dtype=cp.float32)
+        cdf_tile_rows = max(1, TILE_ELEMENTS // self.width)
+        for lo in range(0, self.n_pixels, cdf_tile_rows):
+            hi = min(lo + cdf_tile_rows, self.n_pixels)
+            safe_tile = cp.where(self.pool_total[lo:hi] > 0, self.pool_total[lo:hi], 1).astype(cp.float64)
+            self.cdf[lo:hi] = cp.cumsum(
+                pool[lo:hi].astype(cp.float64) / safe_tile[:, None], axis=1).astype(cp.float32)
+            del safe_tile
         self.has_photon = self.pool_total > 0
         self.signal_share = float(
             (pool[:, :self.RES_T].sum() / pool.sum()).item())
-        del pool, safe
+        del pool
         cp.get_default_memory_pool().free_all_blocks()
 
         self.rng = cp.random.default_rng(dc.EVENT_SEED)

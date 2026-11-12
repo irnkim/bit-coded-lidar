@@ -20,10 +20,10 @@ Usage:
 ``probs`` is a placeholder until real clock-frequency figures are known --
 override via HW_DELAY_PROBS in run_nonadaptive.py.
 """
-import cupy as cp
+from xp_backend import cp
 import numpy as np
 
-GLOBAL_SEED = 4096  # same constant as codes.py / bernoulli_coding.py / dataset_config.py
+GLOBAL_SEED = 4096  # same constant as codes.py / dataset_config.py
 SEED_SALT = 777      # offsets this module's stream from codes.py's own GLOBAL_SEED + row_lo
 
 

@@ -24,8 +24,7 @@ count must be reported rather than assumed equal across shift_step. Edges
 never wrap: a shifted lattice's leading/trailing fragments become their own
 smaller groups rather than joining spatially distant pixels.
 """
-import cupy as cp
-import cupyx
+from xp_backend import cp, cupyx
 import numpy as np
 
 
@@ -144,6 +143,39 @@ def group_bits(code_pb, labels_flat, n_groups, arrivals, pixel_delay_bins=None):
 
     # scatter_add: parallel-safe "+= own_sign at this group" when many
     # photons land in the same group at once.
+    vote_sum = cp.zeros(n_groups, dtype=cp.int32)
+    cupyx.scatter_add(vote_sum, event_labels, own_sign.astype(cp.int32))
+    return cp.sign(vote_sum).astype(cp.float32)
+
+
+def group_bits_kcodebook(codebook, idx, labels_flat, n_groups, arrivals):
+    """K-codebook variant of group_bits: each detected photon's vote reads
+    its own pixel's RANDOMLY CHOSEN code for that specific cycle (idx),
+    not one code shared by the whole batch.
+
+    Args:
+        codebook: (K, RES_T) int8 in {-1, +1} -- fixed for the whole run.
+        idx:      (R*Cw, batch_size) int -- which codebook row this pixel
+                  used on each cycle (codes.KCodebookSource.draw's output).
+        labels_flat, n_groups, arrivals: same as group_bits.
+
+    Returns:
+        (n_groups,) float32, same convention as group_bits.
+    """
+    n_pixels, batch_size = arrivals.shape
+    valid = arrivals >= 0
+    pixel_index = cp.broadcast_to(
+        cp.arange(n_pixels, dtype=cp.int64)[:, None], arrivals.shape)
+    cycle_index = cp.broadcast_to(
+        cp.arange(batch_size, dtype=cp.int64)[None, :], arrivals.shape)
+    event_pixels = pixel_index[valid]
+    event_cycles = cycle_index[valid]
+    event_bins = arrivals[valid].astype(cp.int64)
+    event_labels = labels_flat[event_pixels]
+
+    event_codebook_rows = idx[event_pixels, event_cycles]
+    own_sign = codebook[event_codebook_rows, event_bins]
+
     vote_sum = cp.zeros(n_groups, dtype=cp.int32)
     cupyx.scatter_add(vote_sum, event_labels, own_sign.astype(cp.int32))
     return cp.sign(vote_sum).astype(cp.float32)

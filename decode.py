@@ -11,8 +11,7 @@ A group that saw no photon emitted 0, so it contributes nothing.
 Also accumulates the uncoded photon counts -- costs nothing, is independent
 of the coding, and gives the raw-transient baseline for free.
 """
-import cupy as cp
-import cupyx
+from xp_backend import cp, cupyx
 
 
 def new_accumulator(R, Cw, RES_T):
@@ -48,6 +47,25 @@ def backproject(accumulator, code_pb, bits, labels_flat):
     # bits[labels_flat] fans each group's one bit out to all its pixels;
     # multiplying by the pixel's own code is the decode step -- agreement in
     # sign accumulates positive evidence at the true arrival bin.
+    contribution *= bits[labels_flat][:, None]
+    accumulator += contribution
+
+
+def backproject_kcodebook(accumulator, codebook, idx, bits, labels_flat):
+    """K-codebook variant of backproject: each pixel used a DIFFERENT
+    codebook row on each of this batch's cycles (idx), so there's no
+    single "pixel's own code" to correlate the group bit against --
+    instead correlate against the SUM of the rows this pixel actually
+    used this batch (codebook/idx must be the exact ones
+    encode.group_bits_kcodebook was given for this same batch).
+
+    Args:
+        codebook: (K, RES_T) int8 in {-1, +1}.
+        idx:      (R*Cw, batch_size) int -- codebook row used per cycle.
+        bits, labels_flat: same as backproject.
+    """
+    used_rows = codebook[idx]  # (R*Cw, batch_size, RES_T)
+    contribution = used_rows.sum(axis=1).astype(cp.float32)  # (R*Cw, RES_T)
     contribution *= bits[labels_flat][:, None]
     accumulator += contribution
 
